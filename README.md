@@ -1,159 +1,36 @@
-# su26-ai301-contribution
-# Contribution [#]: [Issue Title]
-
-**Contribution Number:** [1 / 2 / 3]  
-**Student:** [Your Name]  
-**Issue:** [GitHub issue link]  
-**Status:** [Phase I / Phase II / Phase III / Phase IV] [In Progress / Complete]
-
----
-
-## Why I Chose This Issue
-
-[1-2 paragraphs explaining why this issue interests you, how it matches your skills/learning goals, what you hope to learn]
-
----
-
 ## Understanding the Issue
 
 ### Problem Description
-
-[In your own words, what's broken or missing?]
+The `release-plz` documentation advises users to "pin" their GitHub Action version for security. However, it doesn't explain how users can easily keep that pinned version updated over time, which might leave them using outdated software.
 
 ### Expected Behavior
-
-[What should happen?]
+The documentation should include a short explanation of how to automatically update the pinned action. It should specifically mention using a dependency updater like "Renovate" and give the reader a suggestion on how to use it.
 
 ### Current Behavior
-
-[What actually happens?]
+The documentation section regarding security lacks any instructions or suggestions on how to automate the updating process for the action.
 
 ### Affected Components
-
-[Which parts of the codebase are involved?]
+The markdown (`.md`) files inside the repository's `docs/` folder.
 
 ---
 
 ## Reproduction Process
 
 ### Environment Setup
-
-[Notes on setting up your local development environment - challenges you faced, how you solved them]
+Since this is a documentation issue, a complex code environment is not needed. I only need a text editor (like VS Code) and the ability to run the documentation website locally to preview my text changes.
 
 ### Steps to Reproduce
-
-1. [Step 1]
-2. [Step 2]
-3. [Observed result]
+1. Go to the `release-plz` documentation website.
+2. Navigate to the GitHub Security page (`https://release-plz.dev/docs/github/security#-solution-pin-the-action-version`).
+3. Read the section on pinning the action version.
+4. Observe the missing instructions regarding automated updates.
 
 ### Reproduction Evidence
-
-- **Commit showing reproduction:** [Link to commit in your fork]
-- **Screenshots/logs:** [If applicable]
-- **My findings:** [What you discovered during reproduction]
+- **My findings:** The issue is purely a missing paragraph/explanation in the documentation files. No code compilation is breaking.
 
 ---
 
 ## Solution Approach
 
 ### Analysis
-
-[Your analysis of the root cause - what's causing the issue?]
-
-### Proposed Solution
-
-[High-level description of your fix approach]
-
-### Implementation Plan
-
-Using UMPIRE framework (adapted):
-
-**Understand:** [Restate the problem]
-
-**Match:** [What similar patterns/solutions exist in the codebase?]
-
-**Plan:** [Step-by-step implementation plan]
-1. [Modify file X to do Y]
-2. [Add function Z]
-3. [Update tests]
-
-**Implement:** [Link to your branch/commits as you work]
-
-**Review:** [Self-review checklist - does it follow the project's contribution guidelines?]
-
-**Evaluate:** [How will you verify it works?]
-
----
-
-## Testing Strategy
-
-### Unit Tests
-
-- [ ] Test case 1: [Description]
-- [ ] Test case 2: [Description]
-- [ ] Test case 3: [Description]
-
-### Integration Tests
-
-- [ ] Integration scenario 1
-- [ ] Integration scenario 2
-
-### Manual Testing
-
-[What you tested manually and results]
-
----
-
-## Implementation Notes
-
-### Week [X] Progress
-
-[What you built this week, challenges faced, decisions made]
-
-### Week [Y] Progress
-
-[Continue documenting as you work]
-
-### Code Changes
-
-- **Files modified:** [List]
-- **Key commits:** [Links to important commits]
-- **Approach decisions:** [Why you chose certain approaches]
-
----
-
-## Pull Request
-
-**PR Link:** [GitHub PR URL when submitted]
-
-**PR Description:** [Draft or final PR description - much of the content above can be adapted]
-
-**Maintainer Feedback:**
-- [Date]: [Summary of feedback received]
-- [Date]: [How you addressed it]
-
-**Status:** [Awaiting review / Iterating / Approved / Merged]
-
----
-
-## Learnings & Reflections
-
-### Technical Skills Gained
-
-[What you learned technically]
-
-### Challenges Overcome
-
-[What was hard and how you solved it]
-
-### What I'd Do Differently Next Time
-
-[Reflection on your process]
-
----
-
-## Resources Used
-
-- [Link to helpful documentation]
-- [Tutorial or Stack Overflow post that helped]
-- [GitHub issues or discussions that helped]
+The root cause is simply incomplete documentation. To fix this, I will locate the specific markdown file for the security page in the repository, write a clear guide on using Renovate to manage the action version, and submit a Pull Request.
