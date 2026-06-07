@@ -1,3 +1,13 @@
+## Week 1 — Phase I: Issue Selection ✅ DONE
+
+---
+
+## Issue
+**Issue:** https://github.com/ggml-org/llama.cpp/issues/1765
+
+## Why I Chose This Issue
+This issue addresses a gap in the `release-plz` documentation: the security section tells users to pin their GitHub Action version but never explains how to keep that pinned version up to date. It matters because users who follow the advice as written can end up stuck on outdated, potentially insecure versions. I chose it because it is a well-scoped, beginner-friendly documentation fix that lets me make a meaningful contribution without a complex code setup, while still learning the project's workflow.
+
 ## Understanding the Issue
 
 ### Problem Description
