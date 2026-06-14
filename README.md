@@ -1,48 +1,23 @@
-## Week 1 — Phase I: Issue Selection ✅ DONE
+## Phase II: Reproduce & Plan ✅ DONE
 
----
+### Reproduction Process
 
-## Issue
-**Issue:** [Issue #8134: Payee page associated rules count includes completed schedules](https://github.com/actualbudget/actual/issues/8134)
+**Environment Setup:** Cloned the repository, checked out branch `fix-issue-8134`, and ran `yarn install` followed by `yarn start`. The local environment ran successfully without major dependency issues.
 
-## Why I Chose This Issue
-Actual Budget is a great local-first personal finance app. I chose this issue because it is well-scoped, labeled as a "good first issue," and focuses on the user interface. It allows me to learn the frontend structure and component hierarchy without needing to navigate complex database migrations or backend sync logic.
+**Working Branch:** https://github.com/actualbudget/actual/issues/8134
 
-## Understanding the Issue
+**Steps to Reproduce:**
+1. Navigate to Schedules in the local Actual Budget app.
+2. Create a new schedule and assign it to a payee (e.g., "Dominion Power").
+3. Verify on the Payees page that the rule count increases by 1.
+4. Go back to Schedules and mark the newly created schedule as "Completed".
+5. Return to the Payees page. 
+6. **Actual Result:** The associated rules count incorrectly includes the completed schedule.
+7. **Expected Result:** The count should ignore completed schedules and drop back down.
 
-### Problem Description
-The "associated rules" count displayed on the Payee page incorrectly includes schedules that have already been marked as completed. 
+### Solution Approach (Implementation Plan)
 
-### Expected Behavior
-The rules count for a payee should only reflect active or ongoing schedules. Completed schedules should be excluded from this total.
-
-### Current Behavior
-Completed schedules are artificially inflating the associated rule count, giving the user an inaccurate number of active rules tied to a specific payee.
-
-### Affected Components
-This likely affects frontend components related to the Payee page UI and the specific utility functions or selectors that calculate the rule count (e.g., files within `packages/desktop-client/src/components/payees/`).
-
----
-
-## Reproduction Process
-
-### Environment Setup
-To run Actual Budget locally, I need Node.js and Yarn installed. I will clone the repository, run `yarn install` to get the dependencies, and then `yarn start` to launch the app and preview my changes.
-
-### Steps to Reproduce
-1. Open the Actual Budget application.
-2. Create a schedule for a specific payee and mark it as "completed".
-3. Navigate to the Payee page and locate the specific payee.
-4. Observe the "associated rules" count.
-
-### Reproduction Evidence
-- **My findings:** The count includes the schedule I just completed, confirming the bug.
-
----
-
-## Solution Approach
-
-### Analysis
-The root cause is likely that the query or array filter calculating the total rules for a payee does not check the status of the schedules. 
-
-To fix this, I will locate the component rendering the Payee list count and trace the data source. I will then add a filter condition to explicitly exclude any schedules where the status is set to completed before the `.length` or count is calculated, and submit a Pull Request.
+* **Understand:** The UI component displaying the "associated rules" count for a payee is pulling the total length of an array without checking if the associated schedules have a status of "completed".
+* **Match:** I will look for existing utility functions in the codebase that filter active schedules versus completed schedules.
+* **Plan:** I will locate the specific React component rendering the Payee row (likely in `packages/desktop-client/src/components/payees/`). Before the component calculates the `.length` of the rules, I will add a `.filter()` condition to exclude any schedules marked as completed.
+* **Evaluate:** I will manually test this by creating and completing a schedule in my local environment. The UI counter must drop immediately upon completion without breaking other Payee page features.
