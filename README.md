@@ -3,44 +3,44 @@
 ---
 
 ## Issue
-**Issue:** https://github.com/ggml-org/llama.cpp/issues/1765
+**Issue:** [Insert Actual Budget Issue URL here]
 
 ## Why I Chose This Issue
-This issue addresses a gap in the `release-plz` documentation: the security section tells users to pin their GitHub Action version but never explains how to keep that pinned version up to date. It matters because users who follow the advice as written can end up stuck on outdated, potentially insecure versions. I chose it because it is a well-scoped, beginner-friendly documentation fix that lets me make a meaningful contribution without a complex code setup, while still learning the project's workflow.
+[Explain why you picked it. Example: Actual Budget is a great local-first personal finance app. This issue is well-scoped, beginner-friendly, and lets me learn its structure without needing a complex backend setup.]
 
 ## Understanding the Issue
 
 ### Problem Description
-The `release-plz` documentation advises users to "pin" their GitHub Action version for security. However, it doesn't explain how users can easily keep that pinned version updated over time, which might leave them using outdated software.
+[What is broken or missing in Actual Budget?]
 
 ### Expected Behavior
-The documentation should include a short explanation of how to automatically update the pinned action. It should specifically mention using a dependency updater like "Renovate" and give the reader a suggestion on how to use it.
+[What should happen instead?]
 
 ### Current Behavior
-The documentation section regarding security lacks any instructions or suggestions on how to automate the updating process for the action.
+[What currently happens?]
 
 ### Affected Components
-The markdown (`.md`) files inside the repository's `docs/` folder.
+[Which files or packages (e.g., `loot-core`, `desktop-client`, or `docs`) are affected?]
 
 ---
 
 ## Reproduction Process
 
 ### Environment Setup
-Since this is a documentation issue, a complex code environment is not needed. I only need a text editor (like VS Code) and the ability to run the documentation website locally to preview my text changes.
+To run Actual Budget locally, I need Node.js and Yarn installed. I will clone the repository, run `yarn install` to get the dependencies, and then `yarn start` to launch the app and preview my changes.
 
 ### Steps to Reproduce
-1. Go to the `release-plz` documentation website.
-2. Navigate to the GitHub Security page (`https://release-plz.dev/docs/github/security#-solution-pin-the-action-version`).
-3. Read the section on pinning the action version.
-4. Observe the missing instructions regarding automated updates.
+1. [Step 1]
+2. [Step 2]
+3. [Step 3]
 
 ### Reproduction Evidence
-- **My findings:** The issue is purely a missing paragraph/explanation in the documentation files. No code compilation is breaking.
+- **My findings:** [What you saw when you reproduced the bug or missing feature.]
 
 ---
 
 ## Solution Approach
 
 ### Analysis
-The root cause is simply incomplete documentation. To fix this, I will locate the specific markdown file for the security page in the repository, write a clear guide on using Renovate to manage the action version, and submit a Pull Request.
+[What is the root cause?]
+To fix this, I will [explain your exact plan, e.g., update the specific file] and submit a Pull Request.
