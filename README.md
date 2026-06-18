@@ -17,6 +17,8 @@ No feedback received yet. PR is open and awaiting maintainer review.
 Status
 Awaiting Review
 
+Learnings & Reflections
+Biggest lesson: The fix I planned (filtering at the React component level) was wrong. Tracing the actual data flow — frontend → API call → server function → in-memory rules — showed the bug lived one layer deeper than expected. Always follow the data before writing a single line of code.
 
 ## Phase III:  ✅ DONE
 Issue: https://github.com/actualbudget/actual/issues/8134
