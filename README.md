@@ -1,3 +1,41 @@
+## Phase III:  ✅ DONE
+Issue: https://github.com/actualbudget/actual/issues/8134
+
+Problem
+Payees page shows inflated rule counts. A payee with 10 completed tax schedules shows "10 rules" — but clicking to manage rules shows 0. Each schedule auto-creates a rule in the database, and those rules were being counted alongside user-created rules.
+
+Reproduction
+Create a schedule assigned to a payee
+Observe rule count increases by 1 on Payees page
+Mark schedule as Completed
+Actual: count stays the same
+Expected: count drops back down
+Root Cause
+getPayeeRuleCounts() in packages/loot-core/src/server/payees/app.ts iterates all rules with no filtering. Schedule-owned rules (internal, auto-created) and user-created rules live in the same table and were counted the same way.
+
+Fix
+Used the existing getAllRuleIdsFromSchedules() helper to build a Set of schedule-owned rule IDs, then skip them during counting:
+
+
+const scheduleRuleIds = new Set(await rules.getAllRuleIdsFromSchedules(''));
+
+rules.iterateIds(rules.getRules(), 'payee', (rule, id) => {
+  const ruleId = rule.getId();
+  if (ruleId != null && scheduleRuleIds.has(ruleId)) return;
+  // ... count only user-created rules
+});
+Tests
+3 tests added in app.test.ts — all pass:
+
+Completed schedule rules excluded from count
+Standalone rules still counted correctly
+Active schedule rules also excluded
+What I Learned
+Trace data flow before writing code — bug was server-side, not UI-side as initially assumed
+Reuse existing helpers before writing new code
+TypeScript caught a string | undefined type mismatch that would have been a silent runtime bug
+Commit: [AI] Fix payee rule count excluding schedule-owned rules
+
 ## Phase II: Reproduce & Plan ✅ DONE
 
 ### Reproduction Process
