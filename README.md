@@ -1,6 +1,6 @@
 ## Phase IV:  ✅ DONE
 Pull Request
-PR Link: https://github.com/actualbudget/actual/pull/8259
+PR Link: [https://github.com/actualbudget/actual/pull/8259](https://github.com/actualbudget/actual/pull/8328)
 
 What I Contributed
 Issue: #8134 — Payee page associated rules count includes completed schedules
