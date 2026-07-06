@@ -21,6 +21,7 @@ I want to learn how to properly handle date-bounding and filter constraints to p
 The issue has clear, testable acceptance criteria: daily schedules must post sequentially without skipping days.
 
 From reading the issue and debugging the code, I understand the current problem is that later, out-of-order transactions cause earlier schedule occurrences to falsely appear as paid because the query lacks a strict upper bound. My contribution will fix this by adding an $lte: next_date constraint to the transaction date filter, ensuring reliable daily catch-ups
+
 ---
 ---
 
