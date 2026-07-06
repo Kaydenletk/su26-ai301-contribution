@@ -21,7 +21,59 @@ I want to learn how to properly handle date-bounding and filter constraints to p
 The issue has clear, testable acceptance criteria: daily schedules must post sequentially without skipping days.
 
 From reading the issue and debugging the code, I understand the current problem is that later, out-of-order transactions cause earlier schedule occurrences to falsely appear as paid because the query lacks a strict upper bound. My contribution will fix this by adding an $lte: next_date constraint to the transaction date filter, ensuring reliable daily catch-ups
+## Reproduction Process
 
+### Environment Setup
+Cloned the monorepo and ran `yarn install` (Node 22, Yarn 4) — had it running in
+about 30 minutes. No dev container needed; `loot-core` is platform-agnostic, so
+the bug reproduces headless through the Vitest suite. Only snag was that after
+branching off freshly-fetched upstream commits, a second `yarn install` was
+required to relink workspaces and rebuild native deps (`argon2`, `bcrypt`).
+
+Working branch: https://github.com/Kaydenletk/actual/tree/fix-daily-schedule-gaps-8276
+
+### Steps to Reproduce
+1. Create a **daily** schedule with "Post transactions automatically" enabled,
+   starting a few days in the past (e.g. 2016-12-28)
+2. Ensure a transaction already exists for a **later** day in that range
+   (2016-12-30) — from an earlier run, a manual entry, or an out-of-order sync
+3. Trigger the auto-post catch-up (runs on sync / app load)
+4. **Expected:** A transaction is posted for every missed day — 12-28, 12-29,
+   12-30, 12-31, 01-01
+5. **Actual:** Only 12-30, 12-31, 01-01 are posted; **12-28 and 12-29 are
+   silently skipped**, leaving the gaps the issue reports
+
+### Solution Plan
+**Understand:** `getHasTransactionsQuery` decides whether a schedule occurrence
+is already "paid," but filters transactions with only a lower date bound
+(`date >= next_date`) and no upper bound. For a daily schedule that asks "is
+there ANY transaction on or after this day?" — so a single later transaction
+makes every earlier unposted occurrence look already-paid, and the catch-up
+loop advances past those days without posting.
+
+**Match:** The forecast path already dedups per-occurrence with an upper bound
+in `isScheduleOccurrencePosted` at `packages/loot-core/src/shared/schedules.ts`
+line 105 (`tx.date >= matchStart && tx.date <= occurrenceDate`). The query path
+never got the same bound.
+
+**Plan:**
+1. Add an upper bound `date <= next_date` to `getHasTransactionsQuery` in
+   `packages/loot-core/src/shared/schedules.ts` line 124, using the array
+   condition form `date: [{ $gte }, { $lte }]` — a single `{ $gte, $lte }`
+   object silently drops the second operator because the AQL compiler keeps
+   only the first key.
+2. Add 1 integration test in
+   `packages/loot-core/src/server/schedules/app.test.ts` and 2 unit tests in
+   `packages/loot-core/src/shared/schedules.test.ts`.
+3. Run the full loot-core test suite to confirm no regressions.
+
+**Review:** Will self-review against the repo's `AGENTS.md` and commit
+conventions (`[AI]` title prefix, blank PR template, release note added) before
+opening the PR.
+
+**Evaluate:** Manual test reproducing steps 1-3 above should now post a
+transaction for every day with no gaps. All 3 new tests should fail without the
+fix and pass with it; all existing tests should continue to pass.****
 ---
 ---
 
