@@ -80,12 +80,13 @@ getHasTransactionsQuery bounds an auto-posted schedule to its exact occurrence d
 getHasTransactionsQuery caps the manual 2-day lookback at the occurrence date (schedules.test.ts)
 Full suites green: loot-core 979 pass, schedules 75 pass, api 20 pass.
 
-### What I Learned
+What I Learned
 
 Follow the data — the visible symptom (irregular posting) lived in a query's missing date bound, not the catch-up loop itself
 Verify framework semantics — the AQL compiler silently dropped an operator that looked correct in JavaScript
 Reuse existing patterns — an existing helper (isScheduleOccurrencePosted) already applied the correct upper bound; the query path just never got it
 Commit: [AI] Fix daily auto-post schedules skipping days (#8276)
+
 
 ## Phase IV: Submit & Iterate ✅ DONE
 Pull Request
