@@ -76,9 +76,8 @@ Daily schedules with "post automatically" enabled post transactions irregularly,
 `getHasTransactionsQuery()` in `packages/loot-core/src/shared/schedules.ts` decides whether an occurrence is already "paid," but filtered transactions with only a lower date bound (`date >= next_date`) and no upper bound. For a daily schedule that asks "is there ANY transaction on or after this day?" — so a single later transaction makes every earlier unposted occurrence look already-paid, and the catch-up loop advances past those days without posting.
 
 **Fix**
-Added an upper bound so `hasTrans` reflects only the current occurrence. Because the AQL compiler keeps only the first key of a condition object, the range is expressed as an array (implicitly AND-ed):
+Added an upper bound so `hasTrans` reflects only the current occurrence. Because the AQL compiler keeps only the first key of a condition object, the range is expressed as an array (implicitly AND-ed
 
-```js
 date: [
   { $gte: getScheduleOccurrenceMatchStartDate(schedule, schedule.next_date) },
   { $lte: schedule.next_date },
