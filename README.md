@@ -16,12 +16,21 @@ I chose issue #8276 "[AI] Fix daily auto-post schedules skipping days" because i
 
 I'm interested in this because:
 
-- It allows me to continue contributing to the Actual Budget codebase, deepening my understanding of its loot-core package.
-- The problem area (specifically schedules.ts and getHasTransactionsQuery) is well-contained, making it an excellent opportunity to write robust integration and unit tests.
+- It allows me to continue contributing to the Actual Budget codebase, deepening my understanding of its `loot-core` package.
+- The problem area (specifically `schedules.ts` and `getHasTransactionsQuery`) is well-contained, making it an excellent opportunity to write robust integration and unit tests.
 - I want to learn how to properly handle date-bounding and filter constraints to prevent out-of-order data from breaking core logic.
 - The issue has clear, testable acceptance criteria: daily schedules must post sequentially without skipping days.
 
-From reading the issue and debugging the code, I understand the current problem is that later, out-of-order transactions cause earlier schedule occurrences to falsely appear as paid because the query lacks a strict upper bound. My contribution fixes this by adding an `$lte: next_date` constraint to the transaction date filter, ensuring reliable daily catch-ups.
+### Problem Summary
+
+Daily schedules set to post automatically leave gaps instead of posting one transaction per day. This matters because users rely on these schedules to track recurring cash flow — missed days silently understate spending and break budget forecasts. I chose it because a prior fix (#7299) targeted the same behavior but didn't fully resolve it, which told me the real root cause was still open and worth tracing. From reading the issue and debugging the code, the underlying problem is that later, out-of-order transactions cause earlier schedule occurrences to falsely appear as paid, because the "already posted?" query lacks a strict upper date bound.
+
+### Acceptance Criteria (what "fixed" looks like)
+
+- A daily auto-post schedule posts exactly one transaction for every day in its catch-up range.
+- A pre-existing transaction on a later day never suppresses posting for earlier days.
+- No duplicate transactions are created for days that already have one.
+- All existing schedule tests continue to pass.
 
 **Setup:** Forked and cloned the repo, created the branch `fix-daily-schedule-gaps-8276`, and created this Contribution README.
 
@@ -29,94 +38,146 @@ From reading the issue and debugging the code, I understand the current problem 
 
 ### Environment Setup
 
-Cloned the monorepo and ran `yarn install` (Node 22, Yarn 4) — had it running in about 30 minutes. No dev container needed; `loot-core` is platform-agnostic, so the bug reproduces headless through the Vitest suite. Only snag was that after branching off freshly-fetched upstream commits, a second `yarn install` was required to relink workspaces and rebuild native deps (`argon2`, `bcrypt`).
+Cloned the monorepo and ran `yarn install` (Node 22, Yarn 4) — had it running in about 30 minutes. **Setup approach:** followed the repo's `AGENTS.md` / `README.md` instructions rather than a dev container, since `loot-core` is platform-agnostic and the bug reproduces headless through the Vitest suite.
 
-Working branch: https://github.com/Kaydenletk/actual/tree/fix-daily-schedule-gaps-8276
+**Real challenges encountered and how I resolved them:**
+
+- After branching off freshly-fetched upstream commits, the build failed with `Cannot find package '@actual-app/vite-plugin-peggy'`. **Fix:** re-ran `yarn install` from the repo root to relink the workspaces.
+- The sync-server tests then failed with `Cannot find module 'argon2'` / `bcrypt`. **Fix:** these are native modules — the second `yarn install` rebuilt them against the local Node 22 toolchain.
+
+**Working branch:** [fix-daily-schedule-gaps-8276](https://github.com/Kaydenletk/actual/tree/fix-daily-schedule-gaps-8276) (named after the issue).
 
 ### Steps to Reproduce
 
-1. Create a **daily** schedule with "Post transactions automatically" enabled, starting a few days in the past (e.g. 2016-12-28)
-2. Ensure a transaction already exists for a **later** day in that range (2016-12-30) — from an earlier run, a manual entry, or an out-of-order sync
-3. Trigger the auto-post catch-up (runs on sync / app load)
-4. **Expected:** A transaction is posted for every missed day — 12-28, 12-29, 12-30, 12-31, 01-01
-5. **Actual:** Only 12-30, 12-31, 01-01 are posted; **12-28 and 12-29 are silently skipped**, leaving the gaps the issue reports
+1. Create a **daily** schedule with "Post transactions automatically" enabled, starting a few days in the past (e.g. `2016-12-28`).
+2. Ensure a transaction already exists for a **later** day in that range (`2016-12-30`) — from an earlier run, a manual entry, or an out-of-order sync.
+3. Trigger the auto-post catch-up (runs on sync / app load).
+4. **Expected:** A transaction is posted for every missed day — `12-28, 12-29, 12-30, 12-31, 01-01`.
+5. **Actual:** Only `12-30, 12-31, 01-01` are posted; **`12-28` and `12-29` are silently skipped**, leaving the gaps the issue reports.
 
-### Solution Plan
+**Evidence (test harness output):**
 
-**Understand:** `getHasTransactionsQuery` decides whether a schedule occurrence is already "paid," but filters transactions with only a lower date bound (`date >= next_date`) and no upper bound. For a daily schedule that asks "is there ANY transaction on or after this day?" — so a single later transaction makes every earlier unposted occurrence look already-paid, and the catch-up loop advances past those days without posting.
+```
+Before fix: ["2016-12-30","2016-12-31","2017-01-01"]   ← 12-28, 12-29 skipped
+```
 
-**Match:** The forecast path already dedups per-occurrence with an upper bound in `isScheduleOccurrencePosted` at `packages/loot-core/src/shared/schedules.ts` line 105 (`tx.date >= matchStart && tx.date <= occurrenceDate`). The query path never got the same bound.
+### Solution Plan (UMPIRE)
+
+**Understand:** `getHasTransactionsQuery` decides whether a schedule occurrence is already "paid," but filters transactions with only a lower date bound (`date >= next_date`) and no upper bound. For a daily schedule that asks "is there ANY transaction on or after this day?" — so a single later transaction makes every earlier unposted occurrence look already-paid, and the catch-up loop advances past those days without posting. **Root cause:** the missing upper bound on the date filter, in `packages/loot-core/src/shared/schedules.ts`.
+
+**Match:** The forecast path already dedups per-occurrence _with_ an upper bound in `isScheduleOccurrencePosted` at `packages/loot-core/src/shared/schedules.ts` line 105 (`tx.date >= matchStart && tx.date <= occurrenceDate`). The query path never got the same bound — a genuinely analogous example already in the codebase.
 
 **Plan:**
 
-1. Add an upper bound `date <= next_date` to `getHasTransactionsQuery` in `packages/loot-core/src/shared/schedules.ts` line 124, using the array condition form `date: [{ $gte }, { $lte }]` — a single `{ $gte, $lte }` object silently drops the second operator because the AQL compiler keeps only the first key.
+1. Add an upper bound `date <= next_date` to `getHasTransactionsQuery` in `packages/loot-core/src/shared/schedules.ts` (line 124), using the array condition form `date: [{ $gte }, { $lte }]` — a single `{ $gte, $lte }` object silently drops the second operator because the AQL compiler keeps only the first key.
 2. Add 1 integration test in `packages/loot-core/src/server/schedules/app.test.ts` and 2 unit tests in `packages/loot-core/src/shared/schedules.test.ts`.
-3. Run the full loot-core test suite to confirm no regressions.
+3. Run the full `loot-core` test suite to confirm no regressions.
 
-**Review:** Self-reviewed against the repo's `AGENTS.md` and commit conventions (`[AI]` title prefix, blank PR template, release note added) before opening the PR.
+**Review:** Self-reviewed against the repo's `AGENTS.md` and commit conventions (`[AI]` title prefix, blank PR template for the human, release note added) before opening the PR.
 
-**Evaluate:** Manual test reproducing steps 1-3 above now posts a transaction for every day with no gaps. All 3 new tests fail without the fix and pass with it; all existing tests continue to pass.
+**Evaluate:** Manual test reproducing steps 1–3 above now posts a transaction for every day with no gaps. All 3 new tests fail without the fix and pass with it; all existing tests continue to pass.
 
 ## Phase III: Build ✅ DONE
 
-Issue: [actualbudget/actual#8276](https://github.com/actualbudget/actual/issues/8276)
+**Issue:** [actualbudget/actual#8276](https://github.com/actualbudget/actual/issues/8276)
 
-**Problem**
+### Problem
+
 Daily schedules with "post automatically" enabled post transactions irregularly, leaving gaps instead of one transaction per day. A prior fix (#7299, disabling the 2-day lookback) did not fully resolve it.
 
-**Reproduction**
+### Root Cause
 
-- Create a daily auto-post schedule starting a few days in the past
-- Ensure a transaction already exists for a later day in that range
-- Trigger the auto-post catch-up (runs on sync / app load)
-- Actual: every day before the pre-existing transaction is skipped
-- Expected: a transaction is posted for every missed day
+`getHasTransactionsQuery()` in `packages/loot-core/src/shared/schedules.ts` decides whether an occurrence is already "paid," but filtered transactions with only a lower date bound (`date >= next_date`) and no upper bound. For a daily schedule that asks "is there ANY transaction on or after this day?" — so a single later transaction makes every earlier unposted occurrence look already-paid, and the catch-up loop advances past those days without posting.
 
-Tests
-3 tests added — all fail without the fix and pass with it (verified by stashing the change):
+### Fix
 
-Daily catch-up posts every day and skips none when a later transaction exists (app.test.ts)
-getHasTransactionsQuery bounds an auto-posted schedule to its exact occurrence date (schedules.test.ts)
-getHasTransactionsQuery caps the manual 2-day lookback at the occurrence date (schedules.test.ts)
-Full suites green: loot-core 979 pass, schedules 75 pass, api 20 pass.
+Added an upper bound so `hasTrans` reflects only the current occurrence. Because the AQL compiler keeps only the first key of a condition object, the range is expressed as an array (implicitly AND-ed):
 
-What I Learned
+```ts
+date: [
+  { $gte: getScheduleOccurrenceMatchStartDate(schedule, schedule.next_date) },
+  { $lte: schedule.next_date },
+],
+```
 
-Follow the data — the visible symptom (irregular posting) lived in a query's missing date bound, not the catch-up loop itself
-Verify framework semantics — the AQL compiler silently dropped an operator that looked correct in JavaScript
-Reuse existing patterns — an existing helper (isScheduleOccurrencePosted) already applied the correct upper bound; the query path just never got it
-Commit: [AI] Fix daily auto-post schedules skipping days (#8276)
+### Implementation Progress
 
+Files modified (branch `fix-daily-schedule-gaps-8276`):
+
+- `packages/loot-core/src/shared/schedules.ts` — added the `$lte: next_date` upper bound to `getHasTransactionsQuery`
+- `packages/loot-core/src/server/schedules/app.test.ts` — integration test for daily catch-up with a later transaction
+- `packages/loot-core/src/shared/schedules.test.ts` — 2 unit tests asserting the query's `[matchStart, next_date]` range
+- `upcoming-release-notes/fix-daily-schedule-skipped-days.md` — user-facing changelog entry
+
+Key commits:
+
+- `dd664aa1e` — [AI] Fix daily auto-post schedules skipping days (#8276)
+- `d95fe3d35` — [AI] Reword schedule release note to plain language
+
+### Challenges Faced
+
+The one-line conceptual fix (`$lte: next_date`) did not work at first: the query still matched later transactions. The obstacle was that a single `{ $gte, $lte }` object silently dropped the second operator. **Resolved** by reading the AQL compiler (`compiler.ts`) and discovering it keeps only the first key of a condition object; switching to the array form `date: [{ $gte }, { $lte }]` (which the compiler AND-s) fixed it.
+
+### Testing
+
+Both manual and automated:
+
+- **Manual:** ran the catch-up in the test harness and inspected the posted dates before and after the fix (see before/after evidence in Phase IV).
+- **Automated:** 3 tests added — all fail without the fix and pass with it (verified by stashing the change):
+  - Daily catch-up posts every day and skips none when a later transaction exists (`app.test.ts`)
+  - `getHasTransactionsQuery` bounds an auto-posted schedule to its exact occurrence date (`schedules.test.ts`)
+  - `getHasTransactionsQuery` caps the manual 2-day lookback at the occurrence date (`schedules.test.ts`)
+
+Existing suites still green: `loot-core` 979 pass, schedules 75 pass, api 20 pass. `yarn typecheck` and `yarn lint` clean.
+
+### What I Learned
+
+- **Follow the data** — the visible symptom (irregular posting) lived in a query's missing date bound, not the catch-up loop itself.
+- **Verify framework semantics** — the AQL compiler silently dropped an operator that looked correct in JavaScript.
+- **Reuse existing patterns** — an existing helper (`isScheduleOccurrencePosted`) already applied the correct upper bound; the query path just never got it.
 
 ## Phase IV: Submit & Iterate ✅ DONE
-Pull Request
-PR Link: actualbudget/actual#8418
 
-What I Contributed
-Issue: #8276 — Daily auto-post schedules post irregularly, skipping days
+### Pull Request
 
-Fixed a bug where daily (and other recurring) schedules with auto-posting enabled skipped days while catching up. When a transaction already existed for a later day in the range — from an earlier run, a manual entry, or an out-of-order sync — every earlier unposted occurrence was treated as already "paid" and silently skipped, producing the gaps the user reported.
+- **PR Link:** [actualbudget/actual#8418](https://github.com/actualbudget/actual/pull/8418)
+- **Summary:** Adds an upper date bound to `getHasTransactionsQuery` so daily auto-post schedules post a transaction for every day instead of skipping days masked by a later transaction.
+- **Status:** Awaiting review
 
-Files changed:
+The PR is open (not a draft) against the upstream `master` branch, uses the project's PR template (Description / Related issue / Testing / Checklist), and closes the issue with `Closes #8276`.
 
-packages/loot-core/src/shared/schedules.ts — added an upper date bound ($lte: next_date) to getHasTransactionsQuery so a transaction only matches its own occurrence
-packages/loot-core/src/server/schedules/app.test.ts — added an integration test proving no day is skipped when a later transaction exists
-packages/loot-core/src/shared/schedules.test.ts — added 2 unit tests asserting the query's date range is [matchStart, next_date]
-upcoming-release-notes/fix-daily-schedule-skipped-days.md — user-facing changelog entry
-Feedback / Next Steps
-No feedback received yet. PR is open and awaiting maintainer review. The [WIP] prefix and WIP label were removed, and the PR now carries the "ready for review" label with all CI checks green.
+### Before / After Evidence
 
-Status
-Awaiting Review
+Test-harness output for a daily schedule starting `2016-12-28` with a pre-existing transaction on `2016-12-30`:
 
-Learnings & Reflections
-Biggest lesson: the conceptual fix was one line ($lte: next_date), but expressing it correctly meant reading the query compiler. A single { $gte, $lte } object silently dropped the second operator, because the AQL compiler keeps only the first key of a condition object — the working form is an array date: [{ $gte }, { $lte }], which it compiles as an implicit AND. Always verify how the framework interprets your input, not just what you wrote.
+```
+Before fix: ["2016-12-30","2016-12-31","2017-01-01"]                              ← 12-28, 12-29 skipped
+After fix:  ["2016-12-28","2016-12-29","2016-12-30","2016-12-31","2017-01-01"]    ← every day posted
+```
 
-## What I changed vs your current version
-1. **Added Phase I header** — your "Why I Chose" text is Phase I content per the image; now labeled + week-mapped.
-2. **Fixed phase order** → I, II, III, IV (yours had II, IV, III scrambled).
-3. **Added the image's phase names** to each header: "Issue Selection", "Reproduce & Plan", "Build", "Submit & Iterate".
-4. **Formatting** — bullet lists, code fences, tightened past-tense (work is done, not "will do").
+### Acceptance Checklist (in PR)
+
+- [x] Tests added (1 integration + 2 unit)
+- [x] All tests passing (`loot-core` 979 pass)
+- [x] Follows style guide (`yarn lint` + `yarn typecheck` clean)
+- [x] No breaking changes (existing schedule/forecast suites unchanged)
+- [x] Release note added
+
+### Maintainer Feedback Log
+
+| Date       | Feedback                                                                                                                                                                                                                                    | My Response / Commit |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| 2026-07-06 | No maintainer feedback received yet. PR opened, `[WIP]` prefix and WIP label removed, "ready for review" label applied, all CI checks green (42/45, 3 skipped). CodeRabbit (automated review) approved. Awaiting a human maintainer review. | —                    |
+
+The reviewer was surfaced via a `🤖` comment on the PR asking a maintainer to drop the WIP label and review; the repo's welcome bot also auto-routed the PR for review.
+
+### Learnings & Reflections
+
+**Technical gains:** I learned how a query DSL compiles down — specifically that the AQL compiler reads only the first key of a condition object, so range filters must be expressed as an array of single-operator objects. I also learned to locate an analogous, already-correct pattern in a codebase (`isScheduleOccurrencePosted`) and mirror it, rather than inventing a new approach.
+
+**What I'd do differently:** I'd check how the framework interprets a filter _before_ assuming my JavaScript object maps 1:1 to SQL — I lost time debugging a fix that was conceptually right but silently mis-compiled. Next time I'll write the smallest possible failing test against the query layer first, then build the fix on top of it.
+
+**Teachable insight for future cohorts:** When a "one-line fix" doesn't work, suspect the layer _below_ your code (the compiler / ORM / serializer), not your logic. A change that reads correctly in the source language can be silently altered by the tool that translates it — always verify the generated output, not just the input.
 
 ---
 
