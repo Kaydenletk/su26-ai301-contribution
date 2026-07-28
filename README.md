@@ -4,7 +4,7 @@
 **Student:** Kayden Le
 **Issue:** [actualbudget/actual#8276](https://github.com/actualbudget/actual/issues/8276)
 **Pull Request:** [actualbudget/actual#8418](https://github.com/actualbudget/actual/pull/8418)
-**Status:** Phase IV Complete — Awaiting review
+**Status:** Phase IV Complete — Maintainer feedback received and addressed, awaiting re-review
 
 ---
 
@@ -113,6 +113,7 @@ Key commits:
 
 - `dd664aa1e` — [AI] Fix daily auto-post schedules skipping days (#8276)
 - `d95fe3d35` — [AI] Reword schedule release note to plain language
+- `71dbf034a` — [AI] Trim review comments in schedule catch-up fix (addresses @jfdoming's review)
 
 ### Challenges Faced
 
@@ -122,7 +123,8 @@ The one-line conceptual fix (`$lte: next_date`) did not work at first: the query
 
 Both manual and automated:
 
-- **Manual:** ran the catch-up in the test harness and inspected the posted dates before and after the fix (see before/after evidence in Phase IV).
+- **Manual (test harness):** ran the catch-up in the test harness and inspected the posted dates before and after the fix.
+- **Manual (running app):** reproduced the bug in the browser on `edge.actualbudget.org` and confirmed the fix on the PR's Netlify deploy preview, using identical steps on the demo budget (see before/after evidence in Phase IV).
 - **Automated:** 3 tests added — all fail without the fix and pass with it (verified by stashing the change):
   - Daily catch-up posts every day and skips none when a later transaction exists (`app.test.ts`)
   - `getHasTransactionsQuery` bounds an auto-posted schedule to its exact occurrence date (`schedules.test.ts`)
@@ -142,18 +144,32 @@ Existing suites still green: `loot-core` 979 pass, schedules 75 pass, api 20 pas
 
 - **PR Link:** [actualbudget/actual#8418](https://github.com/actualbudget/actual/pull/8418)
 - **Summary:** Adds an upper date bound to `getHasTransactionsQuery` so daily auto-post schedules post a transaction for every day instead of skipping days masked by a later transaction.
-- **Status:** Awaiting review
+- **Status:** Maintainer feedback received 2026-07-22 and addressed 2026-07-27; awaiting re-review
 
 The PR is open (not a draft) against the upstream `master` branch, uses the project's PR template (Description / Related issue / Testing / Checklist), and closes the issue with `Closes #8276`.
 
 ### Before / After Evidence
 
-Test-harness output for a daily schedule starting `2016-12-28` with a pre-existing transaction on `2016-12-30`:
+**1. Test-harness output** for a daily schedule starting `2016-12-28` with a pre-existing transaction on `2016-12-30`:
 
 ```
 Before fix: ["2016-12-30","2016-12-31","2017-01-01"]                              ← 12-28, 12-29 skipped
 After fix:  ["2016-12-28","2016-12-29","2016-12-30","2016-12-31","2017-01-01"]    ← every day posted
 ```
+
+**2. Running app**, after a maintainer asked what I had manually tested. Same steps on both builds, on the demo budget, with today being `07/27/2026`:
+
+1. Bank of America → Add New → date `08/02/2026`, payment `10.00`, answer "No, keep as transaction"
+2. Schedules → Add new schedule → account Bank of America, amount `10.00`, **Every day**, "Automatically add transaction" ticked, and tick the `08/02/2026` transaction so it links on save
+3. Trigger the schedule service (the demo has no sync server, so I called `schedule/force-run-service`, the same entry point the sync-complete handler uses)
+
+| Observation                      | `edge.actualbudget.org` (no fix) | Deploy preview #8418 (fix) |
+| -------------------------------- | -------------------------------- | -------------------------- |
+| Schedule status right after save | **Paid**                         | **Due**                    |
+| Transaction posted for 07/27     | none                             | yes, `10.00`               |
+| Next date after the service ran  | **08/03/2026** (6 days skipped)  | `07/28/2026`               |
+
+A single future-dated linked transaction was enough to make every earlier occurrence look paid, which is exactly the root cause the fix targets. This confirmed the behaviour in the real app rather than only in the test harness.
 
 ### Acceptance Checklist (in PR)
 
@@ -165,19 +181,26 @@ After fix:  ["2016-12-28","2016-12-29","2016-12-30","2016-12-31","2017-01-01"]  
 
 ### Maintainer Feedback Log
 
-| Date       | Feedback                                                                                                                                                                                                                                    | My Response / Commit |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| 2026-07-06 | No maintainer feedback received yet. PR opened, `[WIP]` prefix and WIP label removed, "ready for review" label applied, all CI checks green (42/45, 3 skipped). CodeRabbit (automated review) approved. Awaiting a human maintainer review. | —                    |
+| Date       | Feedback                                                                                                                                                                                                                                                                                                                                                                                                                                      | My Response / Commit                                                                                                                                                                                                                                                                                                                                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-07-06 | No maintainer feedback received yet. PR opened, `[WIP]` prefix and WIP label removed, "ready for review" label applied, all CI checks green (42/45, 3 skipped). CodeRabbit (automated review) approved. Awaiting a human maintainer review.                                                                                                                                                                                                   | —                                                                                                                                                                                                                                                                                                                                                                  |
+| 2026-07-06 | **CodeRabbit** (automated) nitpick: the `dateFilter` test helper in `schedules.test.ts` uses a raw `as HasTransactionsFilter[]` assertion, while the repo's style guide prefers `satisfies` over type assertions.                                                                                                                                                                                                                             | Not changed, with reasoning: `satisfies` cannot narrow the serialized `filterExpressions` type here because the declared type does not structurally overlap, so the assertion would have to be replaced by a hand-written type guard in a test helper. CodeRabbit approved the PR regardless. Noted as a deliberate, argued decision rather than an oversight.     |
+| 2026-07-22 | Maintainer **@jfdoming** left three inline review comments, all on comment quality rather than logic: (1) the five-line doc block above the new upper bound in `schedules.ts` was "hard to parse" AI prose and should be one line, (2) the inline note explaining the AQL array form was unnecessary, (3) the four-line preamble on the new integration test was redundant "as someone can either read the test title or view the Git blame". | Applied all three in commit `71dbf034a`. Replaced the doc block with @jfdoming's own suggested one-liner, deleted the inline AQL note, and deleted the test preamble. Re-ran the two affected suites (75 tests pass) and `yarn lint` before pushing.                                                                                                               |
+| 2026-07-22 | Maintainer **@jfdoming**, top-level comment: _"the AI policy also applies to communications with maintainers (like the PR description) which should be written by a human!"_ and _"Would love to see what you manually tested to confirm this fixes the bug you saw."_                                                                                                                                                                        | Two actions. (a) Rewrote the PR description in plain language, cutting the AI-styled prose. (b) Ran a real manual test in the running app instead of only the test harness — reproduced the skip on `edge.actualbudget.org` and verified the fix on the deploy preview — and wrote those exact steps into the Testing section (see Before / After Evidence above). |
 
-The reviewer was surfaced via a `🤖` comment on the PR asking a maintainer to drop the WIP label and review; the repo's welcome bot also auto-routed the PR for review.
+The reviewer was surfaced via a `🤖` comment on the PR asking a maintainer to drop the WIP label and review; the repo's welcome bot also auto-routed the PR for review. @jfdoming picked it up 16 days after opening.
 
 ### Learnings & Reflections
 
 **Technical gains:** I learned how a query DSL compiles down — specifically that the AQL compiler reads only the first key of a condition object, so range filters must be expressed as an array of single-operator objects. I also learned to locate an analogous, already-correct pattern in a codebase (`isScheduleOccurrencePosted`) and mirror it, rather than inventing a new approach.
 
-**What I'd do differently:** I'd check how the framework interprets a filter _before_ assuming my JavaScript object maps 1:1 to SQL — I lost time debugging a fix that was conceptually right but silently mis-compiled. Next time I'll write the smallest possible failing test against the query layer first, then build the fix on top of it.
+**Review gains:** All of @jfdoming's inline comments were about comments, not code. Every explanation I had written to justify the fix to a reviewer — the five-line doc block, the note about the AQL array form, the test preamble — was noise to someone reading the diff with `git blame` and the test titles available. The fix itself went through untouched. Deleting explanation is a real review outcome, not a concession.
 
-**Teachable insight for future cohorts:** When a "one-line fix" doesn't work, suspect the layer _below_ your code (the compiler / ORM / serializer), not your logic. A change that reads correctly in the source language can be silently altered by the tool that translates it — always verify the generated output, not just the input.
+**What I'd do differently:** Two things. First, I'd check how the framework interprets a filter _before_ assuming my JavaScript object maps 1:1 to SQL — I lost time debugging a fix that was conceptually right but silently mis-compiled. Second, I'd do the manual test in the running app _before_ opening the PR, not after a maintainer asked. I had automated coverage and a test-harness trace, and I wrote a Testing section that leaned on them, but I could not point at the bug happening in the product. Reproducing it on `edge` and watching the next date jump from 07/27 to 08/03 took about twenty minutes and is worth more to a reviewer than any amount of prose about the query.
+
+**On the AI policy:** Actual accepts AI-assisted code and marks it with an `[AI]` title prefix and an `AI generated` label, but it draws a hard line at AI-written communication with maintainers. @jfdoming flagged my PR description for exactly that. The lesson is that the disclosure mechanics are the easy half; the part that actually matters is that a human read the change, ran it, and can defend it in their own words. I rewrote the description in plain language and replaced the claims with the steps I actually performed.
+
+**Teachable insight for future cohorts:** Two, one technical and one about review. Technically: when a "one-line fix" doesn't work, suspect the layer _below_ your code (the compiler / ORM / serializer), not your logic — a change that reads correctly in the source language can be silently altered by the tool that translates it. On review: write the diff for the reviewer, not for yourself. Comments that justify your reasoning belong in the PR conversation, where they can be argued with, not in the source, where they become someone else's maintenance burden. And when you claim you tested something, say what you clicked.
 
 ---
 
